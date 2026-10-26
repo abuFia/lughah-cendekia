@@ -6,8 +6,11 @@ const MAX_CHARS = 600;
 const JENIS_OK = [
   "Ejaan dan penulisan",
   "Harakat",
+  "Tata bahasa (nahwu)",
+  "Bentuk kata (sharaf)",
   "Terjemahan Arab ke Indonesia",
   "Terjemahan Indonesia ke Arab",
+  "Perbaikan susunan kalimat",
 ];
 const KEYS = [
   "A_teks_masukan",
@@ -71,7 +74,7 @@ async function handleMushahhih(request, env) {
   if (request.method === "OPTIONS") return reply(204, {}, origin);
   if (request.method !== "POST") return reply(405, { error: "Gunakan POST." }, origin);
 
-  const key = env.GEMINI_API_KEY;
+  const key = String(env.GEMINI_API_KEY || "").trim();
   if (!key) return reply(500, { error: "GEMINI_API_KEY belum diisi di Cloudflare." }, origin);
 
   let input;
@@ -105,13 +108,24 @@ async function handleMushahhih(request, env) {
     });
 
     if (res.status === 429) return reply(429, { error: "Kuota gratis harian/menit habis. Coba lagi nanti." }, origin);
-    if (!res.ok) return reply(502, { error: "Layanan AI menolak permintaan (" + res.status + ")." }, origin);
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const eb = await res.json();
+        detail = (eb && eb.error && eb.error.message) || "";
+      } catch (e) {}
+      console.error("Gemini menolak:", res.status, detail);
+      // Kode HTTP asli dari Google diteruskan agar mudah didiagnosis:
+      // 400 = key tidak valid, 403 = key ditolak/dibatasi, 404 = model tidak ada.
+      return reply(res.status, { error: "Layanan AI menolak permintaan (" + res.status + "). " + detail.slice(0, 200) }, origin);
+    }
 
     const data = await res.json();
     const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
     const text = parts.map((p) => p.text || "").join("");
     return reply(200, parseModelText(text), origin);
   } catch (e) {
+    console.error("Gagal memanggil Gemini:", String(e));
     return reply(502, { error: "Tidak dapat menghubungi layanan AI." }, origin);
   }
 }
