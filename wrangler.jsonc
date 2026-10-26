@@ -1,0 +1,11 @@
+{
+  "name": "lughah-cendekia",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-19",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": ["/.netlify/functions/*", "/api/*"]
+  }
+}
